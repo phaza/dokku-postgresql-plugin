@@ -24,7 +24,7 @@ postgresql_database="${APP}_production"
 
 
 postgresql_public_ip="localhost"
-postgresql_private_ip="$(netstat -nr | grep '^0\.0\.0\.0' | awk '{print $2}')"
+postgresql_private_ip="$(ifconfig | grep docker0 -A 1 | tail -n 1 | cut -d: -f 2 | cut -d' ' -f 1)"
 postgresql_port=5432
 
 case "$1" in
