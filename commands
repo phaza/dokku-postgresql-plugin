@@ -3,7 +3,6 @@
 
 APP=$2
 
-OLDHOME=$HOME
 HOME="$DOKKU_ROOT/.postgresql"
 
 check_exists() {
@@ -20,43 +19,26 @@ check_app() {
   fi
 }
 
-check_container() {
-  if [[ -z "$id" ]]; then
-    echo "Postgresql container not started cannot continue. Start with dokku postgresql:start"
-    exit 1
-  fi
-}
-
 admin_pass=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
 postgresql_database="${APP}_production"
 
-db_image=jeffutter/postgresql
 
-id=$(docker ps | grep "$db_image":latest |  awk '{print $1}')
-if [[ -n "$id" ]]; then
-  postgresql_public_ip=$(docker port ${id} 5432 | awk '{split($0,a,":"); print a[1]}')
-  postgresql_private_ip=$(docker inspect ${id} | grep IPAddress | awk '{ print $2 }' | tr -d ',"')
-  postgresql_port=$(docker port ${id} 5432 | awk '{split($0,a,":"); print a[2]}')
-  if [[ $postgresql_public_ip = "0.0.0.0" ]]; then
-    postgresql_public_ip=localhost
-  fi
-fi
+postgresql_public_ip="localhost"
+postgresql_private_ip="$(netstat -nr | grep '^0\.0\.0\.0' | awk '{print $2}')"
+postgresql_port=5432
 
 case "$1" in
   postgresql:admin_console)
-    check_container
 
     PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=root psql -p "$postgresql_port" -h localhost postgres
     ;;
   postgresql:console)
-    check_container
     check_app
     check_exists
 
     PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/pass_$APP") PGUSER="$APP" psql -p "$postgresql_port" -h localhost "$postgresql_database"
     ;;
   postgresql:create)
-    check_container
     check_app
     check_exists
 
@@ -68,11 +50,9 @@ case "$1" in
     PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "CREATE DATABASE \"${postgresql_database}\";"
     PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "GRANT ALL PRIVILEGES ON DATABASE \"${postgresql_database}\" to \"${APP}\";"
 
-    postgresql_port=5432
     dokku config:set "$APP" DATABASE_URL="postgres://${APP}:${postgresql_password}@${postgresql_private_ip}:${postgresql_port}/${postgresql_database}"
     ;;
   postgresql:delete)
-    check_container
     check_app
     check_exists
 
@@ -83,7 +63,6 @@ case "$1" in
     dokku config:unset "$APP" DATABASE_URL
     ;;
   postgresql:list)
-    check_container
 
     admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
     PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "\list"
@@ -96,7 +75,6 @@ case "$1" in
     fi
     ;;
   postgresql:stop)
-    check_container
     docker stop ${id}
     ;;
   postgresql:status)
